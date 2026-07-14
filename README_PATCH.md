@@ -1,16 +1,14 @@
-UI tweak patch
+Patch changes:
+1. Remove the Assistant tab from the Admin sidebar.
+2. Replace VN/US text language buttons with SVG flag icons (reused from the previous project style).
+3. This patch keeps the earlier clean video preview behavior and dashboard cleanup if you already merged the previous UI tweaks.
 
-Files included:
+Files:
 - app.js
 - styles.css
 
-Changes:
-1. Language switch uses flag buttons (VN/US) instead of text labels.
-2. Remove the quick Create HoloBox button from the admin dashboard; keep device creation in the device/company flow.
-3. Remove browser controls from the customer home preview video so the preview area shows a clean video without pause/progress/fullscreen UI.
-
-How to apply:
-- Copy app.js and styles.css into the project root, replacing the old files.
+Apply:
+- Copy app.js and styles.css into the project root.
 - Run: npm run check
 - Commit and push.
-- After Render deploys, hard refresh the browser with Ctrl + F5.
+- After Render deploys, press Ctrl + F5.

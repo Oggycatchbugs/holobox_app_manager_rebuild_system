@@ -175,15 +175,21 @@ function statusBadge(status) {
 }
 
 const adminNav = [
-  ['dashboard', 'Dashboard', 'home'], ['customers', 'Customers', 'users'], ['assistant', 'Assistant', 'assistant'],
+  ['dashboard', 'Dashboard', 'home'], ['customers', 'Customers', 'users'],
   ['logs', 'Logs', 'logs'], ['maintenance', 'Maintenance', 'wrench'], ['settings', 'Settings', 'settings'],
 ];
 const customerNav = [
   ['customerHome', 'Home', 'home'], ['customerVideo', 'Video', 'video'], ['customerAudio', 'Audio', 'audio'], ['customerAssistant', 'Assistant', 'assistant'],
 ];
 
+function flagSvg(lang) {
+  if (lang === 'vi') {
+    return `<svg viewBox="0 0 30 20" class="flag-svg" aria-hidden="true"><rect width="30" height="20" rx="2" fill="#da251d"/><polygon fill="#ff0" points="15,3.2 16.8,8.1 22,8.1 17.7,11.1 19.4,16 15,13 10.6,16 12.3,11.1 8,8.1 13.2,8.1"/></svg>`;
+  }
+  return `<svg viewBox="0 0 30 20" class="flag-svg" aria-hidden="true"><rect width="30" height="20" rx="2" fill="#fff"/><g fill="#b22234"><rect y="0" width="30" height="1.54"/><rect y="3.08" width="30" height="1.54"/><rect y="6.16" width="30" height="1.54"/><rect y="9.24" width="30" height="1.54"/><rect y="12.32" width="30" height="1.54"/><rect y="15.4" width="30" height="1.54"/><rect y="18.48" width="30" height="1.52"/></g><rect width="12.6" height="10.8" rx="1" fill="#3c3b6e"/><g fill="#fff"><circle cx="2" cy="2" r=".55"/><circle cx="5" cy="2" r=".55"/><circle cx="8" cy="2" r=".55"/><circle cx="11" cy="2" r=".55"/><circle cx="3.5" cy="4" r=".55"/><circle cx="6.5" cy="4" r=".55"/><circle cx="9.5" cy="4" r=".55"/><circle cx="2" cy="6" r=".55"/><circle cx="5" cy="6" r=".55"/><circle cx="8" cy="6" r=".55"/><circle cx="11" cy="6" r=".55"/><circle cx="3.5" cy="8" r=".55"/><circle cx="6.5" cy="8" r=".55"/><circle cx="9.5" cy="8" r=".55"/></g></svg>`;
+}
 function renderLanguageTools() {
-  return `<div class="lang-switch"><button class="flag-btn ${state.language === 'vi' ? 'active' : ''}" data-action="change-language" data-lang="vi">🇻🇳</button><button class="flag-btn ${state.language === 'en' ? 'active' : ''}" data-action="change-language" data-lang="en">🇺🇸</button></div>`;
+  return `<div class="lang-switch"><button class="flag-btn ${state.language === 'vi' ? 'active' : ''}" data-action="change-language" data-lang="vi" title="Tiếng Việt">${flagSvg('vi')}</button><button class="flag-btn ${state.language === 'en' ? 'active' : ''}" data-action="change-language" data-lang="en" title="English">${flagSvg('en')}</button></div>`;
 }
 function renderTopbar(title, subtitle = '') {
   return `<header class="topbar"><div><h1>${escapeHtml(title)}</h1>${subtitle ? `<p>${escapeHtml(subtitle)}</p>` : ''}</div><div class="topbar-actions">
@@ -224,7 +230,6 @@ function renderAdminShell() {
 }
 function renderAdminView() {
   if (state.view === 'customers') return renderAdminCustomers();
-  if (state.view === 'assistant') return renderAssistantManager(true);
   if (state.view === 'logs') return renderAdminLogs();
   if (state.view === 'maintenance') return renderAdminMaintenance();
   if (state.view === 'settings') return renderAdminSettings();
