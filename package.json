@@ -11,7 +11,7 @@
     "generate-secret": "node scripts/generate-session-secret.js"
   },
   "engines": {
-    "node": ">=20"
+    "node": "24.x"
   },
   "dependencies": {
     "@supabase/supabase-js": "^2.57.4",

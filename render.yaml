@@ -3,13 +3,17 @@ services:
     name: holobox-manager-phase1
     env: node
     plan: free
-    buildCommand: npm ci
+    buildCommand: npm ci --no-audit --no-fund
     startCommand: npm start
     healthCheckPath: /health
     autoDeploy: true
     envVars:
       - key: NODE_ENV
         value: production
+      - key: NODE_VERSION
+        value: 24.14.1
+      - key: NPM_CONFIG_REGISTRY
+        value: https://registry.npmjs.org
       - key: SUPABASE_URL
         value: https://qdgtfqfmdsrgbllwabvd.supabase.co
       - key: SUPABASE_SERVICE_ROLE_KEY
