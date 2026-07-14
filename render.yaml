@@ -1,0 +1,36 @@
+services:
+  - type: web
+    name: holobox-manager-phase1
+    env: node
+    plan: free
+    buildCommand: npm ci
+    startCommand: npm start
+    healthCheckPath: /health
+    autoDeploy: true
+    envVars:
+      - key: NODE_ENV
+        value: production
+      - key: SUPABASE_URL
+        value: https://qdgtfqfmdsrgbllwabvd.supabase.co
+      - key: SUPABASE_SERVICE_ROLE_KEY
+        sync: false
+      - key: SUPABASE_BUCKET
+        value: holobox-media
+      - key: SESSION_SECRET
+        generateValue: true
+      - key: ADMIN_INITIAL_USERNAME
+        value: admin
+      - key: ADMIN_INITIAL_PASSWORD
+        sync: false
+      - key: ADMIN_INITIAL_NAME
+        value: TLC Admin
+      - key: UPLOAD_MAX_BYTES
+        value: 262144000
+      - key: SIGNED_URL_TTL_SEC
+        value: 3600
+      - key: HEARTBEAT_WARNING_SEC
+        value: 45
+      - key: HEARTBEAT_OFFLINE_SEC
+        value: 90
+      - key: DEVICE_HEARTBEAT_INTERVAL_SEC
+        value: 15

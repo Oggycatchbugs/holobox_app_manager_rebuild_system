@@ -1,0 +1,22 @@
+{
+  "name": "holobox-manager-tlc-phase1",
+  "version": "14.0.0",
+  "private": true,
+  "description": "TLC HoloBox Manager Phase 1 foundation with normalized Supabase data and authenticated device APIs",
+  "main": "server.js",
+  "scripts": {
+    "start": "node server.js",
+    "dev": "node --watch server.js",
+    "check": "node --check app.js && node --check server.js && node --check src/config.js && node --check src/db.js && node --check src/auth.js && node --check src/services.js",
+    "generate-secret": "node scripts/generate-session-secret.js"
+  },
+  "engines": {
+    "node": ">=20"
+  },
+  "dependencies": {
+    "@supabase/supabase-js": "^2.57.4",
+    "cookie-parser": "^1.4.7",
+    "dotenv": "^16.6.1",
+    "express": "^5.1.0"
+  }
+}

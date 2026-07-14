@@ -1,0 +1,30 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1" />
+  <title>Holobox Manager - TLC R&D</title>
+  <link rel="stylesheet" href="styles.css?v=14.0.0" />
+</head>
+<body>
+  <div id="app"></div>
+
+  <div id="loadingOverlay" class="loading-overlay hidden" aria-live="polite">
+    <div class="loading-card">
+      <div class="spinner-glow" id="loadingSpinner"></div>
+      <div class="progress-wrap hidden" id="uploadProgressWrap">
+        <div class="progress-ring-mini">↥</div>
+        <div class="progress-track"><div id="uploadProgressBar" class="progress-bar"></div></div>
+        <div id="uploadProgressPercent" class="progress-percent">0%</div>
+      </div>
+      <h3 id="loadingTitle">Processing...</h3>
+      <p id="loadingSubtitle">Please wait a moment</p>
+    </div>
+  </div>
+
+  <div id="modalRoot"></div>
+  <div id="toastRoot" class="toast-root"></div>
+
+  <script src="app.js?v=14.0.0"></script>
+</body>
+</html>
