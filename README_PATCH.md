@@ -1,18 +1,16 @@
-# Patch: Add HoloBox button
+UI tweak patch
 
-Changed file: `app.js`
+Files included:
+- app.js
+- styles.css
 
-What changed:
-- Added **Thêm HoloBox** button to Admin Dashboard.
-- Added **Thêm HoloBox** button to the Admin Devices tab.
-- The button opens a modal where Admin selects the company and enters device details.
-- Existing company-detail form remains available.
-- If no company exists, the UI redirects Admin to the Company tab.
+Changes:
+1. Language switch uses flag buttons (VN/US) instead of text labels.
+2. Remove the quick Create HoloBox button from the admin dashboard; keep device creation in the device/company flow.
+3. Remove browser controls from the customer home preview video so the preview area shows a clean video without pause/progress/fullscreen UI.
 
-Deploy:
-1. Replace `app.js` in the repository root.
-2. Run `npm run check`.
-3. Commit and push.
-4. Render auto-deploys.
-
-No SQL migration and no new environment variables are required.
+How to apply:
+- Copy app.js and styles.css into the project root, replacing the old files.
+- Run: npm run check
+- Commit and push.
+- After Render deploys, hard refresh the browser with Ctrl + F5.

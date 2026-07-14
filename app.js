@@ -235,7 +235,7 @@ function renderAdminDashboard() {
   const online = state.data.devices.filter(item => item.status === 'Online').length;
   const support = state.data.devices.filter(item => ['Offline', 'Error'].includes(item.status)).length;
   return `<div class="stats-grid">${statCard('Companies', state.data.customers.length, 'Registered companies', 'users')}${statCard('HoloBox', state.data.devices.length, `${online} online`, 'monitor')}${statCard('Media', state.data.videos.length + state.data.audio.length, 'Ads and assistant audio', 'video')}${statCard('Need support', support, 'Offline or error', 'logs')}</div>
-    <div class="two-col equal"><section class="panel"><div class="panel-toolbar"><h2>HoloBox</h2><div class="actions"><button class="mini-btn" data-action="open-create-device">${icon('plus')} ${t('Create device')}</button><button class="mini-btn" data-action="refresh">${icon('refresh')} Refresh</button></div></div>${renderDeviceTable(state.data.devices, true)}</section><section class="panel"><h2>Recent events</h2>${renderLogList(state.data.logs.slice(0, 10))}</section></div>`;
+    <div class="two-col equal"><section class="panel"><div class="panel-toolbar"><h2>HoloBox</h2><button class="mini-btn" data-action="refresh">${icon('refresh')} Refresh</button></div>${renderDeviceTable(state.data.devices, true)}</section><section class="panel"><h2>Recent events</h2>${renderLogList(state.data.logs.slice(0, 10))}</section></div>`;
 }
 
 function renderAdminCustomers() {
@@ -297,7 +297,7 @@ function renderAdsPreview() {
   const url = `/api/media/file/video/${encodeURIComponent(item.id)}`;
   return item.kind === 'advertisement_image' || String(item.mimeType || '').startsWith('image/')
     ? `<img class="holobox-ads-player" src="${url}" alt="${escapeHtml(item.name)}">`
-    : `<video class="holobox-ads-player" src="${url}" autoplay muted loop playsinline controls></video>`;
+    : `<video class="holobox-ads-player" src="${url}" autoplay muted loop playsinline></video>`;
 }
 function renderCustomerDeviceModeControls(activeDevice) {
   const devices = customerDevices();
