@@ -142,6 +142,43 @@ function currentCustomerId() {
 function customerName(id = currentCustomerId()) { return state.data.customers.find(item => item.id === id)?.name || 'Company'; }
 function customerDevices(id = currentCustomerId()) { return state.data.devices.filter(item => String(item.customerId) === String(id)); }
 function primaryDevice() { return customerDevices()[0] || null; }
+
+function deviceDisplayMode(device) {
+  if (!device) return 'OFF';
+  if (device.desiredPowerState === 'OFF') return 'OFF';
+  if (device.desiredMode === 'ADS_ONLY') return 'ADS';
+
+  const telemetry = device.telemetry && typeof device.telemetry === 'object' ? device.telemetry : {};
+  const reportedMode = String(telemetry.displayMode || '').toUpperCase();
+  if (reportedMode === 'ADS') return 'ADS';
+  if (reportedMode === 'ASSISTANT') return 'ASSISTANT';
+  if (reportedMode === 'IDLE') return 'ASSISTANT';
+
+  if (device.personDetected || telemetry.hasActiveSession === true) return 'ASSISTANT';
+  const runtimeState = String(device.runtimeState || '').toUpperCase();
+  if (['ADS_IDLE', 'ADS_SAFE_MODE', 'PLAYING_ADS'].includes(runtimeState)) return 'ADS';
+
+  const noPersonSeconds = Number(telemetry.noPersonSeconds || 0);
+  const idleAfter = Number(telemetry.idleAdsAfterSec || 30);
+  if (noPersonSeconds >= idleAfter) return 'ADS';
+  return 'ASSISTANT';
+}
+
+function liveDeviceSignature() {
+  const device = primaryDevice();
+  if (!device) return 'none';
+  const telemetry = device.telemetry && typeof device.telemetry === 'object' ? device.telemetry : {};
+  return JSON.stringify({
+    id: device.id,
+    status: device.status,
+    companyStatus: device.companyStatus,
+    desiredPowerState: device.desiredPowerState,
+    desiredMode: device.desiredMode,
+    displayMode: deviceDisplayMode(device),
+    personDetected: Boolean(device.personDetected),
+    managerDisplayMode: telemetry.displayMode || '',
+  });
+}
 function customerVideos(id = currentCustomerId()) { return state.data.videos.filter(item => String(item.customerId) === String(id)); }
 function customerAudios(id = currentCustomerId()) { return state.data.audio.filter(item => String(item.customerId) === String(id)); }
 function customerScripts(id = currentCustomerId()) { return state.data.assistantScripts.filter(item => String(item.customerId) === String(id)); }
@@ -288,9 +325,11 @@ function renderCustomerHome() {
   return `<div class="customer-home-grid"><section class="holobox-screen-panel">${renderHoloboxScreenPreview(device)}</section><aside class="customer-list-panel"><div class="mini-list-block"><div class="panel-toolbar"><h2>${t('Video list')}</h2><button class="mini-btn" data-action="nav" data-view="customerVideo">${t('Video')}</button></div>${renderMiniMediaList(playlistMedia(), 'video')}</div><div class="mini-list-block"><div class="panel-toolbar"><h2>${t('Receptionist audio')}</h2><button class="mini-btn" data-action="nav" data-view="customerAudio">${t('Audio')}</button></div>${renderMiniMediaList(customerAudios(), 'audio')}</div></aside></div>`;
 }
 function renderHoloboxScreenPreview(device) {
-  const isOff = !device || device.desiredPowerState === 'OFF';
-  const isAds = device?.desiredMode === 'ADS_ONLY';
-  return `<div class="holobox-preview-card ${isAds && !isOff ? 'ads-output-card' : ''}"><div class="screen-output-area"><div class="preview-screen ${isOff ? 'off-mode' : isAds ? 'ads-mode' : 'assistant-mode'}">${isOff ? '<div class="preview-main turned-off-text">HoloBox turned off</div>' : isAds ? renderAdsPreview() : renderAssistantPreview(device)}</div></div><div class="screen-control-area"><div class="preview-meta compact-meta"><div>${t('Status')}: ${statusBadge(device?.companyStatus || 'Cần hỗ trợ')}</div><div>${t('Mode')}: ${escapeHtml(isAds ? t('Just Ads Mode') : t('Assistant Mode'))}</div><div>${t('Last seen')}: ${lastSeenLabel(device?.lastSeenAt)}</div></div><div class="mode-toggle-panel"><h3>Chuyển chế độ HoloBox</h3>${renderCustomerDeviceModeControls(device)}</div></div></div>`;
+  const displayMode = deviceDisplayMode(device);
+  const isOff = displayMode === 'OFF';
+  const isAds = displayMode === 'ADS';
+  const displayLabel = isOff ? 'Đã tắt' : isAds ? 'Đang chiếu quảng cáo' : 'Đang hiển thị lễ tân';
+  return `<div class="holobox-preview-card ${isAds && !isOff ? 'ads-output-card' : ''}"><div class="screen-output-area"><div class="preview-screen ${isOff ? 'off-mode' : isAds ? 'ads-mode' : 'assistant-mode'}">${isOff ? '<div class="preview-main turned-off-text">HoloBox turned off</div>' : isAds ? renderAdsPreview() : renderAssistantPreview(device)}</div></div><div class="screen-control-area"><div class="preview-meta compact-meta"><div>${t('Status')}: ${statusBadge(device?.companyStatus || 'Cần hỗ trợ')}</div><div>${t('Mode')}: ${escapeHtml(device?.desiredMode === 'ADS_ONLY' ? t('Just Ads Mode') : t('Assistant Mode'))}</div><div>Nội dung: <b>${escapeHtml(displayLabel)}</b></div><div>${t('Last seen')}: ${lastSeenLabel(device?.lastSeenAt)}</div></div><div class="mode-toggle-panel"><h3>Chuyển chế độ HoloBox</h3>${renderCustomerDeviceModeControls(device)}</div></div></div>`;
 }
 function renderAssistantPreview(device) {
   if (device?.streamUrl) return `<div class="stream-output-wrap"><img class="holobox-stream-output" src="${escapeHtml(device.streamUrl)}" alt="HoloBox output"></div>`;
@@ -486,6 +525,24 @@ function initDynamicUi() {
   });
 }
 
+
+let liveRefreshInFlight = false;
+async function refreshLiveStateSilently() {
+  if (!state.user || liveRefreshInFlight) return;
+  if (!(state.portal === 'customer' && state.view === 'customerHome')) return;
+  liveRefreshInFlight = true;
+  const before = liveDeviceSignature();
+  try {
+    await loadData();
+    const after = liveDeviceSignature();
+    if (before !== after) render();
+  } catch (error) {
+    console.debug('Live state refresh failed:', error.message);
+  } finally {
+    liveRefreshInFlight = false;
+  }
+}
+
 async function initApp() {
   console.info('HoloBox Manager', APP_VERSION);
   try {
@@ -507,3 +564,4 @@ async function initApp() {
 }
 
 initApp();
+setInterval(refreshLiveStateSilently, 5000);
