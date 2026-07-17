@@ -1514,24 +1514,27 @@ label { display: grid; gap: 8px; font-weight: 800; color: var(--ink); }
 .customer-row { display: flex; align-items: center; justify-content: space-between; gap: 14px; padding: 14px; border: 1px solid rgba(255,255,255,.1); border-radius: 14px; background: rgba(255,255,255,.035); }
 @media (max-width: 760px) { .customer-row { align-items: flex-start; flex-direction: column; } .customer-row .actions { width: 100%; } }
 
-/* Phase 2.1.1: mirror the real portrait HoloBox display without landscape bars. */
+/* Phase 2.1.2: keep the Manager preview in the same 16:9 landscape viewport as Runtime. */
 .preview-screen.real-screen-preview {
   width: 100%;
   min-height: 0 !important;
   padding: 0 !important;
-  overflow: visible;
-  background: transparent !important;
-  align-items: flex-start;
+  overflow: hidden;
+  background: #050505 !important;
+  display: flex;
+  align-items: center;
   justify-content: center;
+  border-radius: 24px;
 }
 .holobox-screen-frame-wrap {
-  width: min(100%, 420px);
-  aspect-ratio: 9 / 16;
+  width: 100%;
+  max-width: 100%;
+  aspect-ratio: 16 / 9;
   min-height: 0;
   position: relative;
   overflow: hidden;
   background: #050505;
-  border-radius: 26px;
+  border-radius: 24px;
   box-shadow: 0 20px 55px rgba(0, 0, 0, .18);
 }
 .holobox-screen-frame {
@@ -1543,7 +1546,7 @@ label { display: grid; gap: 8px; font-weight: 800; color: var(--ink); }
   background: #050505;
 }
 @media (max-width: 760px) {
-  .holobox-screen-frame-wrap { width: min(100%, 380px); }
+  .holobox-screen-frame-wrap { width: 100%; }
 }
 .screen-open-link {
   position: absolute;
