@@ -125,6 +125,30 @@ async function signedMediaUrl(storagePath) {
   return data.signedUrl;
 }
 
+async function cleanupExpiredMediaTrash() {
+  const supabase = getSupabase();
+  const now = nowIso();
+  const { data: expired, error } = await supabase
+    .from('media_assets')
+    .select('id,storage_path')
+    .eq('status', 'archived')
+    .not('purge_after', 'is', null)
+    .lte('purge_after', now)
+    .limit(200);
+  if (error) throw new Error(`Could not load expired media trash: ${error.message}`);
+  if (!expired?.length) return 0;
+
+  const storagePaths = expired.map(item => item.storage_path).filter(Boolean);
+  if (storagePaths.length) {
+    const removal = await supabase.storage.from(config.SUPABASE_BUCKET).remove(storagePaths);
+    if (removal.error) throw new Error(`Could not purge media storage: ${removal.error.message}`);
+  }
+  const ids = expired.map(item => item.id);
+  const update = await supabase.from('media_assets').update({ purge_after: null, updated_at: now }).in('id', ids);
+  if (update.error) throw new Error(`Could not mark media trash as purged: ${update.error.message}`);
+  return expired.length;
+}
+
 async function serializeManifestForDevice(device) {
   const latest = await getLatestManifest(device.id);
   const payload = JSON.parse(JSON.stringify(latest.payload || {}));
@@ -384,6 +408,7 @@ app.post('/api/admin/devices', requireAdmin, asyncRoute(async (req, res) => {
     device_code: deviceCode,
     location_name: cleanName(req.body.location),
     stream_url: cleanName(req.body.streamUrl),
+    default_language: req.body.defaultLanguage === 'en' ? 'en' : 'vi',
     desired_power_state: 'OFF',
     desired_mode: req.body.runtimeMode === 'JUST_ADS' ? 'ADS_ONLY' : 'ASSISTANT',
     active_playlist_id: playlist.id,
@@ -418,6 +443,7 @@ app.put('/api/admin/devices/:id', requireAdmin, asyncRoute(async (req, res) => {
     organization_id: cleanName(req.body.customerId || before.data.organization_id),
     stream_url: cleanName(req.body.streamUrl || ''),
     location_name: cleanName(req.body.location || before.data.location_name),
+    default_language: req.body.defaultLanguage === 'en' ? 'en' : (before.data.default_language || 'vi'),
     desired_mode: req.body.runtimeMode === 'JUST_ADS' ? 'ADS_ONLY' : 'ASSISTANT',
     updated_at: nowIso(),
   };
@@ -484,12 +510,40 @@ app.post('/api/admin/devices/:id/sync-now', requireAdmin, asyncRoute(async (req,
   const device = await supabase.from('devices').select('*').eq('id', req.params.id).is('archived_at', null).maybeSingle();
   if (device.error) throw new Error(`Could not load device: ${device.error.message}`);
   if (!device.data) return errorResponse(res, 404, 'Device not found.');
+
+  const reported = await supabase.from('device_reported_states').select('telemetry,runtime_state,reported_at').eq('device_id', req.params.id).maybeSingle();
+  if (reported.error) throw new Error(`Could not load current device session: ${reported.error.message}`);
+  const hasActiveSession = Boolean(reported.data?.telemetry?.hasActiveSession);
+  const force = req.body?.force === true;
+  if (hasActiveSession && !force) {
+    return res.status(409).json({
+      ok: false,
+      error: 'HoloBox đang có phiên khách hoạt động.',
+      code: 'ACTIVE_SESSION',
+      requiresForce: true,
+      runtimeState: reported.data?.runtime_state || 'UNKNOWN',
+    });
+  }
+
   const manifest = await rebuildDeviceManifest(req.params.id);
   const timestamp = nowIso();
   const update = await supabase.from('devices').update({ sync_requested_at: timestamp, updated_at: timestamp }).eq('id', req.params.id);
   if (update.error) throw new Error(`Could not request sync: ${update.error.message}`);
-  await audit({ actorId: req.authUser.id, organizationId: device.data.organization_id, action: 'device_sync_requested', resourceType: 'device', resourceId: req.params.id, after: { manifestVersion: manifest.version } });
-  res.json({ ok: true, manifestVersion: manifest.version, data: await getBootstrapData(req.authUser) });
+  await audit({
+    actorId: req.authUser.id,
+    organizationId: device.data.organization_id,
+    action: force ? 'device_sync_forced' : 'device_sync_requested',
+    resourceType: 'device',
+    resourceId: req.params.id,
+    after: { manifestVersion: manifest.version, force, hadActiveSession: hasActiveSession },
+  });
+  res.json({
+    ok: true,
+    manifestVersion: manifest.version,
+    restartRequired: true,
+    syncRequestAt: timestamp,
+    data: await getBootstrapData(req.authUser),
+  });
 }));
 
 app.put('/api/playlists/active/items', requireCompanyOrAdmin, asyncRoute(async (req, res) => {
@@ -519,11 +573,15 @@ app.delete('/api/media/:kind/:id', requireCompanyOrAdmin, asyncRoute(async (req,
   if (!media.data) return errorResponse(res, 404, 'Media not found.');
   if (!assertOrganizationAccess(req.authUser, media.data.organization_id)) return errorResponse(res, 403, 'Media access denied.');
   const timestamp = nowIso();
+  const purgeAfter = new Date(Date.now() + 7 * 24 * 60 * 60 * 1000).toISOString();
   await supabase.from('playlist_items').delete().eq('media_asset_id', media.data.id);
-  const archive = await supabase.from('media_assets').update({ status: 'archived', archived_at: timestamp, updated_at: timestamp }).eq('id', media.data.id);
+  const archive = await supabase.from('media_assets').update({
+    status: 'archived',
+    archived_at: timestamp,
+    purge_after: purgeAfter,
+    updated_at: timestamp,
+  }).eq('id', media.data.id);
   if (archive.error) throw new Error(`Could not archive media: ${archive.error.message}`);
-  const remove = await supabase.storage.from(config.SUPABASE_BUCKET).remove([media.data.storage_path]);
-  if (remove.error) console.error('Storage cleanup failed:', remove.error.message);
   await rebuildOrganizationManifests(media.data.organization_id);
   await audit({ actorId: req.authUser.id, organizationId: media.data.organization_id, action: 'media_archived', resourceType: 'media_asset', resourceId: media.data.id, before: { name: media.data.name, kind: media.data.kind } });
   res.json({ ok: true, data: await getBootstrapData(req.authUser) });
@@ -740,7 +798,9 @@ async function heartbeatHandler(req, res) {
 
   const latest = await getLatestManifest(req.device.id);
   const syncRequested = req.device.sync_requested_at ? new Date(req.device.sync_requested_at).getTime() : 0;
-  const lastSync = body.sync?.lastSyncAt ? new Date(body.sync.lastSyncAt).getTime() : 0;
+  const handledSyncRequest = body.sync?.lastHandledRequestAt
+    ? new Date(body.sync.lastHandledRequestAt).getTime()
+    : body.sync?.lastSyncAt ? new Date(body.sync.lastSyncAt).getTime() : 0;
   res.json({
     ok: true,
     serverTime: nowIso(),
@@ -749,7 +809,9 @@ async function heartbeatHandler(req, res) {
     manifestVersion: Number(latest.version || 0),
     desiredManifestVersion: Number(latest.version || 0),
     manifestUpdateAvailable: installedVersion < Number(latest.version || 0),
-    syncNow: Boolean(syncRequested && syncRequested > lastSync),
+    syncNow: Boolean(syncRequested && syncRequested > handledSyncRequest),
+    restartAndSync: Boolean(syncRequested && syncRequested > handledSyncRequest),
+    syncRequestAt: req.device.sync_requested_at || null,
     heartbeatIntervalSec: config.DEVICE_HEARTBEAT_INTERVAL_SEC,
   });
 }
@@ -803,7 +865,8 @@ app.use((error, _req, res, _next) => {
 async function start() {
   try {
     await ensureBootstrapAdmin();
-    console.log('Phase 1 database ready.');
+    const purged = await cleanupExpiredMediaTrash();
+    console.log(`Phase 1 database ready. Purged ${purged} expired media item(s).`);
   } catch (error) {
     console.error('Startup database check failed:', error.message);
     console.error('The server will still start so /health can report the configuration problem.');
@@ -811,6 +874,10 @@ async function start() {
   app.listen(config.PORT, () => {
     console.log(`TLC HoloBox Manager Phase 1 listening on http://localhost:${config.PORT}`);
   });
+  const cleanupTimer = setInterval(() => {
+    cleanupExpiredMediaTrash().catch(error => console.error('Media trash cleanup failed:', error.message));
+  }, 6 * 60 * 60 * 1000);
+  cleanupTimer.unref?.();
 }
 
 start();

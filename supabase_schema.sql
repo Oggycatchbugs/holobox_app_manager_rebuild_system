@@ -53,6 +53,7 @@ create table if not exists public.devices (
   name text not null,
   location_name text not null default '',
   stream_url text not null default '',
+  default_language text not null default 'vi' check (default_language in ('vi','en')),
   desired_power_state text not null default 'OFF' check (desired_power_state in ('ON','OFF')),
   desired_mode text not null default 'ASSISTANT' check (desired_mode in ('ASSISTANT','ADS_ONLY')),
   active_playlist_id uuid references public.playlists(id) on delete set null,
@@ -114,7 +115,8 @@ create table if not exists public.media_assets (
   uploaded_by uuid references public.users(id) on delete set null,
   created_at timestamptz not null default now(),
   updated_at timestamptz not null default now(),
-  archived_at timestamptz
+  archived_at timestamptz,
+  purge_after timestamptz
 );
 create unique index if not exists media_org_name_lower_uidx
   on public.media_assets(organization_id, lower(name)) where archived_at is null;

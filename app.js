@@ -1,4 +1,4 @@
-const APP_VERSION = '14.0.0-phase1-foundation';
+const APP_VERSION = '14.1.0-phase2-startup-sync-bridge';
 const STORAGE_KEY = 'holobox_manager_phase1_cache_v14';
 const TLC_LOGO_SRC = 'assets/tlc-logo.png';
 
@@ -89,7 +89,12 @@ async function apiJson(url, options = {}) {
     },
   });
   const payload = await response.json().catch(() => ({}));
-  if (!response.ok || payload.ok === false) throw new Error(payload.error || `Request failed (${response.status})`);
+  if (!response.ok || payload.ok === false) {
+    const error = new Error(payload.error || `Request failed (${response.status})`);
+    error.status = response.status;
+    error.payload = payload;
+    throw error;
+  }
   return payload;
 }
 async function loadData() {
@@ -121,9 +126,9 @@ function modal(title, body, actions = '') {
   </div></div>`;
 }
 function closeModal() { modalRoot.innerHTML = ''; }
-async function confirmModal(title, text) {
+async function confirmModal(title, text, confirmLabel = t('Delete'), confirmTone = 'danger') {
   return new Promise(resolve => {
-    modal(title, `<p>${escapeHtml(text)}</p>`, `<button class="action-btn" data-confirm="no">${t('Close')}</button><button class="action-btn danger" data-confirm="yes">${t('Delete')}</button>`);
+    modal(title, `<p>${escapeHtml(text)}</p>`, `<button class="action-btn" data-confirm="no">${t('Close')}</button><button class="action-btn ${escapeHtml(confirmTone)}" data-confirm="yes">${escapeHtml(confirmLabel)}</button>`);
     const handler = event => {
       const button = event.target.closest('[data-confirm]');
       if (!button) return;
@@ -296,11 +301,11 @@ function renderAdminCustomerDashboard(customerId) {
   const devices = customerDevices(customerId);
   return `<div class="customer-dashboard"><div class="panel-toolbar"><div><button class="btn btn-small" data-action="customer-back-list">${icon('back')} Back</button><h2 style="margin-top:12px">${escapeHtml(company.name)}</h2><p class="subtitle">${escapeHtml(company.email || '—')} · ${escapeHtml(company.phone || '—')}</p></div><div class="actions"><button class="btn" data-action="customer-login-info" data-id="${company.id}">${t('Info')}</button><button class="btn btn-primary" data-action="view-as-customer" data-id="${company.id}">${t('View as Customer')}</button></div></div>
     <div class="stats-grid">${statCard('HoloBox', devices.length, `${devices.filter(item => item.status === 'Online').length} online`, 'monitor')}${statCard('Advertisements', customerVideos(customerId).length, 'Video and images', 'video')}${statCard('Audio', customerAudios(customerId).length, 'Assistant audio', 'audio')}${statCard('Assistant', customerScripts(customerId).length, 'Editable scripts', 'assistant')}</div>
-    <div class="two-col"><form class="card form-card" data-form="admin-create-device"><h2>${icon('plus')} Thêm HoloBox</h2><input type="hidden" name="customerId" value="${company.id}"><label>Tên thiết bị<input class="input" name="name" required></label><label>Mã thiết bị<input class="input" name="deviceCode" required placeholder="GLIDFER-HB-001"></label><label>Vị trí<input class="input" name="location"></label><label>Stream URL beta<input class="input" name="streamUrl"></label><button class="btn btn-primary wide" type="submit">${t('Create device')}</button></form><section class="panel"><h2>Device dashboard</h2>${renderDeviceTable(devices, true)}</section></div></div>`;
+    <div class="two-col"><form class="card form-card" data-form="admin-create-device"><h2>${icon('plus')} Thêm HoloBox</h2><input type="hidden" name="customerId" value="${company.id}"><label>Tên thiết bị<input class="input" name="name" required></label><label>Mã thiết bị<input class="input" name="deviceCode" required placeholder="GLIDFER-HB-001"></label><label>Vị trí<input class="input" name="location"></label><label>Stream URL beta<input class="input" name="streamUrl"></label><label>Ngôn ngữ mặc định<select name="defaultLanguage"><option value="vi">Tiếng Việt</option><option value="en">English</option></select></label><button class="btn btn-primary wide" type="submit">${t('Create device')}</button></form><section class="panel"><h2>Device dashboard</h2>${renderDeviceTable(devices, true)}</section></div></div>`;
 }
 function renderDeviceTable(devices, admin = false) {
   return `<div class="device-card-list">${devices.map(device => `<div class="device-card-item"><div class="device-card-head"><div><b>${escapeHtml(device.name)}</b><div class="sub">${escapeHtml(device.deviceCode)}${admin ? ` · ${escapeHtml(customerName(device.customerId))}` : ''}</div></div><div class="device-card-actions">${admin ? `<button class="btn btn-small btn-soft" data-action="sync-device" data-id="${device.id}">${icon('sync')} Sync</button><button class="btn btn-small btn-soft" data-action="rotate-device-token" data-id="${device.id}">${icon('key')} Token</button><button class="btn btn-small btn-soft" data-action="edit-device" data-id="${device.id}">${t('Edit')}</button><button class="btn btn-small btn-danger" data-action="delete-device" data-id="${device.id}">${t('Delete')}</button>` : ''}</div></div>
-    <div class="device-card-meta"><div><span>Status</span>${statusBadge(device.status)}</div><div><span>Power</span><b>${escapeHtml(device.desiredPowerState)}</b></div><div><span>Mode</span><b>${escapeHtml(device.desiredMode)}</b></div><div><span>Last seen</span><b>${lastSeenLabel(device.lastSeenAt)}</b></div><div><span>Model</span><b>${escapeHtml(device.modelStatus || 'UNKNOWN')}</b></div><div><span>Manifest</span><b>v${escapeHtml(device.installedManifestVersion || 0)}</b></div></div>${device.lastError ? `<div class="sub error-text">${escapeHtml(device.lastError)}</div>` : ''}</div>`).join('') || `<div class="empty">${t('No data')}</div>`}</div>`;
+    <div class="device-card-meta"><div><span>Status</span>${statusBadge(device.status)}</div><div><span>Power</span><b>${escapeHtml(device.desiredPowerState)}</b></div><div><span>Mode</span><b>${escapeHtml(device.desiredMode)}</b></div><div><span>Last seen</span><b>${lastSeenLabel(device.lastSeenAt)}</b></div><div><span>Model</span><b>${escapeHtml(device.modelStatus || 'UNKNOWN')}</b></div><div><span>Manifest</span><b>web v${escapeHtml(device.desiredManifestVersion || 0)} · local v${escapeHtml(device.installedManifestVersion || 0)}</b></div><div><span>Ngôn ngữ</span><b>${escapeHtml((device.defaultLanguage || 'vi').toUpperCase())}</b></div></div>${device.lastError ? `<div class="sub error-text">${escapeHtml(device.lastError)}</div>` : ''}</div>`).join('') || `<div class="empty">${t('No data')}</div>`}</div>`;
 }
 function renderAdminLogs() { return `<section class="panel"><div class="panel-toolbar"><h2>${t('Logs')}</h2><button class="mini-btn" data-action="refresh">${icon('refresh')} Refresh</button></div>${renderLogList(state.data.logs)}</section>`; }
 function renderLogList(logs) { return `<div class="log-list">${(logs || []).map(log => `<div class="log-row"><div><b>${escapeHtml(log.event || 'Event')}</b><div class="sub">${escapeHtml(new Date(log.time).toLocaleString())} · ${escapeHtml(log.device || '')}</div></div>${statusBadge(log.status || 'INFO')}<div class="sub">${escapeHtml(log.detail || '')}</div></div>`).join('') || `<div class="empty">${t('No data')}</div>`}</div>`; }
@@ -329,10 +334,15 @@ function renderHoloboxScreenPreview(device) {
   const isOff = displayMode === 'OFF';
   const isAds = displayMode === 'ADS';
   const displayLabel = isOff ? 'Đã tắt' : isAds ? 'Đang chiếu quảng cáo' : 'Đang hiển thị lễ tân';
-  return `<div class="holobox-preview-card ${isAds && !isOff ? 'ads-output-card' : ''}"><div class="screen-output-area"><div class="preview-screen ${isOff ? 'off-mode' : isAds ? 'ads-mode' : 'assistant-mode'}">${isOff ? '<div class="preview-main turned-off-text">HoloBox turned off</div>' : isAds ? renderAdsPreview() : renderAssistantPreview(device)}</div></div><div class="screen-control-area"><div class="preview-meta compact-meta"><div>${t('Status')}: ${statusBadge(device?.companyStatus || 'Cần hỗ trợ')}</div><div>${t('Mode')}: ${escapeHtml(device?.desiredMode === 'ADS_ONLY' ? t('Just Ads Mode') : t('Assistant Mode'))}</div><div>Nội dung: <b>${escapeHtml(displayLabel)}</b></div><div>${t('Last seen')}: ${lastSeenLabel(device?.lastSeenAt)}</div></div><div class="mode-toggle-panel"><h3>Chuyển chế độ HoloBox</h3>${renderCustomerDeviceModeControls(device)}</div></div></div>`;
+  const screenUrl = device?.screenUrl || device?.streamUrl || '';
+  const screenContent = isOff
+    ? '<div class="preview-main turned-off-text">HoloBox turned off</div>'
+    : screenUrl
+      ? `<div class="holobox-screen-frame-wrap"><iframe class="holobox-screen-frame" src="${escapeHtml(screenUrl)}" title="HoloBox screen" allow="autoplay; fullscreen"></iframe><a class="screen-open-link" href="${escapeHtml(screenUrl)}" target="_blank" rel="noopener">Mở màn hình trong tab mới</a></div>`
+      : isAds ? renderAdsPreview() : renderAssistantPreview(device);
+  return `<div class="holobox-preview-card ${isAds && !isOff ? 'ads-output-card' : ''}"><div class="screen-output-area"><div class="preview-screen ${isOff ? 'off-mode' : isAds ? 'ads-mode' : 'assistant-mode'}">${screenContent}</div></div><div class="screen-control-area"><div class="preview-meta compact-meta"><div>${t('Status')}: ${statusBadge(device?.companyStatus || 'Cần hỗ trợ')}</div><div>${t('Mode')}: ${escapeHtml(device?.desiredMode === 'ADS_ONLY' ? t('Just Ads Mode') : t('Assistant Mode'))}</div><div>Nội dung: <b>${escapeHtml(displayLabel)}</b></div><div>Màn hình thật: <b>${escapeHtml(device?.currentScreen || 'Chưa báo cáo')}</b></div><div>${t('Last seen')}: ${lastSeenLabel(device?.lastSeenAt)}</div></div><div class="mode-toggle-panel"><h3>Chuyển chế độ HoloBox</h3>${renderCustomerDeviceModeControls(device)}</div></div></div>`;
 }
 function renderAssistantPreview(device) {
-  if (device?.streamUrl) return `<div class="stream-output-wrap"><img class="holobox-stream-output" src="${escapeHtml(device.streamUrl)}" alt="HoloBox output"></div>`;
   return `<div class="preview-main assistant-output"><img class="preview-device-logo" src="assets/holobox-device.png" alt="HoloBox"><b>Assistant Mode</b><span>${escapeHtml(device?.runtimeState || 'Ready for avatar runtime')}</span></div>`;
 }
 function renderAdsPreview() {
@@ -403,7 +413,7 @@ async function uploadFiles(files, kind) {
   showLoading('Uploading media...', `${files.length} file(s)`);
   try {
     for (const file of files) await uploadFile(file, kind);
-    toast('success', 'Upload complete');
+    toast('success', 'Đã lưu nội dung', 'Nội dung mới sẽ được áp dụng vào lần khởi động tiếp theo.');
     render();
   } catch (error) { toast('error', 'Upload failed', error.message); }
   finally { hideLoading(); }
@@ -411,7 +421,7 @@ async function uploadFiles(files, kind) {
 async function savePlaylistOrder(mediaIds) {
   const payload = await apiJson('/api/playlists/active/items', { method: 'PUT', body: JSON.stringify({ customerId: currentCustomerId(), mediaIds }) });
   state.data = mergeData(payload.data);
-  toast('success', 'Đã lưu thứ tự playlist');
+  toast('success', 'Đã lưu thứ tự playlist', 'Nội dung mới sẽ được áp dụng vào lần khởi động tiếp theo.');
   render();
 }
 
@@ -439,7 +449,7 @@ const actionHandlers = {
   'toggle-customer-device-power': async target => { const device = state.data.devices.find(item => item.id === target.dataset.id) || primaryDevice(); if (!device) return toast('error', 'No HoloBox'); const payload = await apiJson(`/api/devices/${device.id}/control`, { method: 'PATCH', body: JSON.stringify({ powerState: device.desiredPowerState === 'ON' ? 'OFF' : 'ON' }) }); state.data = mergeData(payload.data); render(); },
   'toggle-customer-device-mode': async target => { const device = state.data.devices.find(item => item.id === target.dataset.id); if (!device) return; const payload = await apiJson(`/api/devices/${device.id}/control`, { method: 'PATCH', body: JSON.stringify({ powerState: 'ON', mode: device.desiredMode === 'ADS_ONLY' ? 'ASSISTANT' : 'ADS_ONLY' }) }); state.data = mergeData(payload.data); render(); },
   'preview-media': async target => { const list = target.dataset.kind === 'audio' ? state.data.audio : state.data.videos; const item = list.find(media => media.id === target.dataset.id); if (!item) return; const url = `/api/media/file/${target.dataset.kind}/${item.id}`; const preview = target.dataset.kind === 'audio' ? `<audio controls src="${url}" style="width:100%"></audio>` : item.kind === 'advertisement_image' ? `<img src="${url}" style="width:100%;border-radius:18px">` : `<video controls src="${url}" style="width:100%;border-radius:18px;max-height:60vh"></video>`; modal(item.name, preview, `<button class="btn" data-action="close-modal">${t('Close')}</button>`); },
-  'delete-media': async target => { if (!(await confirmModal('Delete media', 'File sẽ bị loại khỏi playlist và bộ nhớ cloud.'))) return; const payload = await apiJson(`/api/media/${target.dataset.kind}/${target.dataset.id}`, { method: 'DELETE' }); state.data = mergeData(payload.data); render(); },
+  'delete-media': async target => { if (!(await confirmModal('Delete media', 'File sẽ bị loại khỏi playlist, đưa vào thùng rác cloud trong 7 ngày và được gỡ khỏi máy ở lần sync tiếp theo.'))) return; const payload = await apiJson(`/api/media/${target.dataset.kind}/${target.dataset.id}`, { method: 'DELETE' }); state.data = mergeData(payload.data); toast('success', 'Đã xóa khỏi playlist', 'Nội dung mới sẽ được áp dụng vào lần khởi động tiếp theo.'); render(); },
   'delete-assistant-template': async target => { if (!(await confirmModal('Delete assistant script', 'Xóa câu thoại này?'))) return; const payload = await apiJson(`/api/assistant/scripts/${target.dataset.id}`, { method: 'DELETE' }); state.data = mergeData(payload.data); render(); },
   'edit-assistant-template': async target => {
     const script = state.data.assistantScripts.find(item => item.id === target.dataset.id); if (!script) return;
@@ -453,11 +463,36 @@ const actionHandlers = {
       render();
       return;
     }
-    modal('Thêm HoloBox', `<form class="form-card modal-form" data-form="admin-create-device"><label>Công ty<select name="customerId" required>${state.data.customers.map(company => `<option value="${company.id}">${escapeHtml(company.name)}</option>`).join('')}</select></label><label>Tên thiết bị<input class="input" name="name" required placeholder="Glidfer HoloBox"></label><label>Mã thiết bị<input class="input" name="deviceCode" required placeholder="GLIDFER-HB-001"></label><label>Vị trí<input class="input" name="location" placeholder="Cổng check-in"></label><label>Stream URL beta<input class="input" name="streamUrl" placeholder="http://..."></label><button class="btn btn-primary wide" type="submit">${t('Create device')}</button></form>`);
+    modal('Thêm HoloBox', `<form class="form-card modal-form" data-form="admin-create-device"><label>Công ty<select name="customerId" required>${state.data.customers.map(company => `<option value="${company.id}">${escapeHtml(company.name)}</option>`).join('')}</select></label><label>Tên thiết bị<input class="input" name="name" required placeholder="Glidfer HoloBox"></label><label>Mã thiết bị<input class="input" name="deviceCode" required placeholder="GLIDFER-HB-001"></label><label>Vị trí<input class="input" name="location" placeholder="Cổng check-in"></label><label>Stream URL beta<input class="input" name="streamUrl" placeholder="http://..."></label><label>Ngôn ngữ mặc định<select name="defaultLanguage"><option value="vi">Tiếng Việt</option><option value="en">English</option></select></label><button class="btn btn-primary wide" type="submit">${t('Create device')}</button></form>`);
   },
-  'sync-device': async target => { const payload = await apiJson(`/api/admin/devices/${target.dataset.id}/sync-now`, { method: 'POST', body: '{}' }); state.data = mergeData(payload.data); toast('success', 'Sync requested', `Manifest v${payload.manifestVersion}`); render(); },
+  'sync-device': async target => {
+    const firstConfirmed = await confirmModal(
+      'Restart và đồng bộ HoloBox',
+      'HoloBox đang chạy. Đồng bộ ngay sẽ restart chương trình Runtime và tạm dừng trải nghiệm đang hoạt động. Bạn có chắc muốn tiếp tục?',
+      'Restart & Sync',
+      'danger',
+    );
+    if (!firstConfirmed) return;
+    let payload;
+    try {
+      payload = await apiJson(`/api/admin/devices/${target.dataset.id}/sync-now`, { method: 'POST', body: JSON.stringify({ force: false }) });
+    } catch (error) {
+      if (error.status !== 409 || error.payload?.code !== 'ACTIVE_SESSION') throw error;
+      const forced = await confirmModal(
+        'Đang có phiên khách hoạt động',
+        'Nếu tiếp tục, phiên check-in hiện tại sẽ bị ngắt. Xác nhận lần hai để ép restart và đồng bộ ngay.',
+        'Ép restart & sync',
+        'danger',
+      );
+      if (!forced) return;
+      payload = await apiJson(`/api/admin/devices/${target.dataset.id}/sync-now`, { method: 'POST', body: JSON.stringify({ force: true }) });
+    }
+    state.data = mergeData(payload.data);
+    toast('success', 'Đã gửi lệnh restart & sync', `Manifest v${payload.manifestVersion}. Runtime sẽ tự khởi động lại.`);
+    render();
+  },
   'rotate-device-token': async target => { if (!(await confirmModal('Rotate device token', 'Token cũ sẽ ngừng hoạt động ngay.'))) return; const payload = await apiJson(`/api/admin/devices/${target.dataset.id}/credentials/rotate`, { method: 'POST', body: '{}' }); modal('New device token', `<p>Chỉ hiển thị một lần. Sao chép vào file .env của mini PC.</p><textarea class="input" rows="4" readonly>${escapeHtml(payload.deviceToken)}</textarea>`, `<button class="btn" data-copy-token="${escapeHtml(payload.deviceToken)}">Copy</button><button class="btn btn-primary" data-action="close-modal">Close</button>`); },
-  'edit-device': async target => { const device = state.data.devices.find(item => item.id === target.dataset.id); if (!device) return; modal('Edit HoloBox', `<form class="form-card modal-form" data-form="admin-edit-device"><input type="hidden" name="id" value="${device.id}"><label>Name<input class="input" name="name" value="${escapeHtml(device.name)}" required></label><label>Device code<input class="input" name="deviceCode" value="${escapeHtml(device.deviceCode)}" required></label><label>Company<select name="customerId">${state.data.customers.map(company => `<option value="${company.id}" ${company.id === device.customerId ? 'selected' : ''}>${escapeHtml(company.name)}</option>`).join('')}</select></label><label>Location<input class="input" name="location" value="${escapeHtml(device.location || '')}"></label><label>Stream URL<input class="input" name="streamUrl" value="${escapeHtml(device.streamUrl || '')}"></label><label>Mode<select name="runtimeMode"><option value="ASSISTANT" ${device.desiredMode === 'ASSISTANT' ? 'selected' : ''}>Assistant</option><option value="JUST_ADS" ${device.desiredMode === 'ADS_ONLY' ? 'selected' : ''}>Ads only</option></select></label><button class="btn btn-primary wide" type="submit">${t('Save')}</button></form>`); },
+  'edit-device': async target => { const device = state.data.devices.find(item => item.id === target.dataset.id); if (!device) return; modal('Edit HoloBox', `<form class="form-card modal-form" data-form="admin-edit-device"><input type="hidden" name="id" value="${device.id}"><label>Name<input class="input" name="name" value="${escapeHtml(device.name)}" required></label><label>Device code<input class="input" name="deviceCode" value="${escapeHtml(device.deviceCode)}" required></label><label>Company<select name="customerId">${state.data.customers.map(company => `<option value="${company.id}" ${company.id === device.customerId ? 'selected' : ''}>${escapeHtml(company.name)}</option>`).join('')}</select></label><label>Location<input class="input" name="location" value="${escapeHtml(device.location || '')}"></label><label>Stream URL<input class="input" name="streamUrl" value="${escapeHtml(device.streamUrl || '')}"></label><label>Ngôn ngữ mặc định<select name="defaultLanguage"><option value="vi" ${device.defaultLanguage !== 'en' ? 'selected' : ''}>Tiếng Việt</option><option value="en" ${device.defaultLanguage === 'en' ? 'selected' : ''}>English</option></select></label><label>Mode<select name="runtimeMode"><option value="ASSISTANT" ${device.desiredMode === 'ASSISTANT' ? 'selected' : ''}>Assistant</option><option value="JUST_ADS" ${device.desiredMode === 'ADS_ONLY' ? 'selected' : ''}>Ads only</option></select></label><button class="btn btn-primary wide" type="submit">${t('Save')}</button></form>`); },
   'delete-device': async target => { if (!(await confirmModal('Archive HoloBox', 'Thiết bị sẽ bị archive và token bị thu hồi.'))) return; const payload = await apiJson(`/api/admin/devices/${target.dataset.id}`, { method: 'DELETE' }); state.data = mergeData(payload.data); render(); },
 };
 
@@ -498,9 +533,9 @@ document.addEventListener('submit', async event => {
       case 'admin-edit-device':
         payload = await apiJson(`/api/admin/devices/${data.id}`, { method: 'PUT', body: JSON.stringify(data) }); state.data = mergeData(payload.data); closeModal(); break;
       case 'assistant-script':
-        payload = await apiJson('/api/assistant/scripts', { method: 'POST', body: JSON.stringify({ ...data, language: state.language }) }); state.data = mergeData(payload.data); form.reset(); break;
+        payload = await apiJson('/api/assistant/scripts', { method: 'POST', body: JSON.stringify({ ...data, language: state.language }) }); state.data = mergeData(payload.data); form.reset(); toast('success', 'Đã lưu nội dung', 'Nội dung mới sẽ được áp dụng vào lần khởi động tiếp theo.'); break;
       case 'assistant-script-edit':
-        payload = await apiJson(`/api/assistant/scripts/${data.id}`, { method: 'PUT', body: JSON.stringify({ ...data, language: state.language }) }); state.data = mergeData(payload.data); closeModal(); break;
+        payload = await apiJson(`/api/assistant/scripts/${data.id}`, { method: 'PUT', body: JSON.stringify({ ...data, language: state.language }) }); state.data = mergeData(payload.data); closeModal(); toast('success', 'Đã lưu nội dung', 'Nội dung mới sẽ được áp dụng vào lần khởi động tiếp theo.'); break;
       case 'admin-settings':
         payload = await apiJson('/api/admin/settings', { method: 'PUT', body: JSON.stringify(data) }); state.data = mergeData(payload.data); break;
       default: return;

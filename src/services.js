@@ -179,7 +179,11 @@ async function buildManifestBase(device) {
       audioMediaId: script.audio_media_id,
       enabled: script.enabled,
     })),
-    settings: { loop: true, syncMode: 'daily' },
+    settings: {
+      loop: true,
+      syncMode: 'startup_once_per_day',
+      defaultLanguage: device.default_language === 'en' ? 'en' : 'vi',
+    },
   };
 }
 
@@ -258,7 +262,11 @@ function computeDeviceState(device, reported, settings) {
   else if (connectivity === 'WARNING') displayStatus = 'Connecting';
   else if (['ERROR', 'MISSING'].includes(String(reported?.model_status || '').toUpperCase())) displayStatus = 'Error';
   else if (String(reported?.runtime_state || '').toUpperCase() === 'ERROR' || reported?.last_error) displayStatus = 'Error';
-  else if (['STARTING', 'BOOT', 'SYNCING', 'LOADING'].includes(String(reported?.runtime_state || '').toUpperCase())) displayStatus = 'Connecting';
+  else if ([
+    'STARTING', 'BOOT', 'BOOTING', 'SETUP', 'SYSTEM_CHECK', 'MANIFEST_CHECK',
+    'SYNC_PLAN', 'DOWNLOADING', 'VERIFYING', 'ACTIVATING', 'SYNC_COMPLETE',
+    'SELF_TEST', 'SYNCING', 'LOADING',
+  ].includes(String(reported?.runtime_state || '').toUpperCase())) displayStatus = 'Connecting';
   else displayStatus = 'Online';
 
   const companyStatus = displayStatus === 'Online'
@@ -321,7 +329,7 @@ async function getBootstrapData(user) {
     scriptQuery = scriptQuery.eq('organization_id', orgFilter);
   }
 
-  const [orgRes, userRes, deviceRes, stateRes, mediaRes, playlistRes, itemRes, scriptRes] = await Promise.all([
+  const [orgRes, userRes, deviceRes, stateRes, mediaRes, playlistRes, itemRes, scriptRes, manifestRes] = await Promise.all([
     orgQuery,
     usersQuery,
     deviceQuery,
@@ -330,8 +338,9 @@ async function getBootstrapData(user) {
     playlistQuery,
     supabase.from('playlist_items').select('*').order('sort_order', { ascending: true }),
     scriptQuery,
+    supabase.from('device_manifests').select('device_id,version'),
   ]);
-  for (const response of [orgRes, userRes, deviceRes, stateRes, mediaRes, playlistRes, itemRes, scriptRes]) {
+  for (const response of [orgRes, userRes, deviceRes, stateRes, mediaRes, playlistRes, itemRes, scriptRes, manifestRes]) {
     if (response.error) throw new Error(`Could not load manager data: ${response.error.message}`);
   }
 
@@ -349,6 +358,11 @@ async function getBootstrapData(user) {
     lastLoginAt: item.last_login_at,
   }));
   const stateMap = new Map((stateRes.data || []).map(row => [row.device_id, row]));
+  const manifestVersionMap = new Map();
+  for (const row of manifestRes.data || []) {
+    const current = Number(manifestVersionMap.get(row.device_id) || 0);
+    manifestVersionMap.set(row.device_id, Math.max(current, Number(row.version || 0)));
+  }
   const devices = (deviceRes.data || []).map(device => {
     const reported = stateMap.get(device.id) || null;
     const computed = computeDeviceState(device, reported, settings);
@@ -360,6 +374,8 @@ async function getBootstrapData(user) {
       deviceCode: device.device_code,
       location: device.location_name,
       streamUrl: device.stream_url,
+      screenUrl: reported?.telemetry?.holoboxScreenUrl || reported?.telemetry?.streamUrl || device.stream_url,
+      defaultLanguage: device.default_language === 'en' ? 'en' : 'vi',
       desiredPowerState: device.desired_power_state,
       desiredMode: device.desired_mode,
       powerCommand: device.desired_power_state === 'ON' ? 'START' : 'STOP',
@@ -379,10 +395,11 @@ async function getBootstrapData(user) {
       syncStatus: reported?.sync_status || 'UNKNOWN',
       appVersion: reported?.app_version || '',
       installedManifestVersion: Number(reported?.installed_manifest_version || 0),
+      desiredManifestVersion: Number(manifestVersionMap.get(device.id) || 0),
       currentVideoId: reported?.current_media_id || '',
       currentAd: reported?.current_media_name || '',
       currentAudio: reported?.current_audio_name || '',
-      currentScreen: reported?.current_media_name || reported?.runtime_state || '',
+      currentScreen: reported?.telemetry?.displayScreen || reported?.current_media_name || reported?.runtime_state || '',
       personDetected: Boolean(reported?.person_detected),
       storageFreeMb: reported?.storage_free_mb,
       lastError: reported?.last_error || '',

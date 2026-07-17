@@ -1513,3 +1513,35 @@ label { display: grid; gap: 8px; font-weight: 800; color: var(--ink); }
 .customer-list { display: grid; gap: 10px; }
 .customer-row { display: flex; align-items: center; justify-content: space-between; gap: 14px; padding: 14px; border: 1px solid rgba(255,255,255,.1); border-radius: 14px; background: rgba(255,255,255,.035); }
 @media (max-width: 760px) { .customer-row { align-items: flex-start; flex-direction: column; } .customer-row .actions { width: 100%; } }
+
+/* Phase 2: mirror the real local HoloBox display. */
+.holobox-screen-frame-wrap {
+  width: 100%;
+  height: 100%;
+  min-height: 420px;
+  position: relative;
+  overflow: hidden;
+  background: #050505;
+}
+.holobox-screen-frame {
+  width: 100%;
+  height: 100%;
+  min-height: 420px;
+  border: 0;
+  display: block;
+  background: #050505;
+}
+.screen-open-link {
+  position: absolute;
+  right: 12px;
+  bottom: 12px;
+  z-index: 3;
+  border-radius: 999px;
+  padding: 8px 12px;
+  background: rgba(0, 0, 0, .68);
+  color: #fff;
+  font-size: 12px;
+  text-decoration: none;
+  backdrop-filter: blur(8px);
+}
+.screen-open-link:hover { background: rgba(0, 0, 0, .88); }
