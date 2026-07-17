@@ -114,6 +114,39 @@ async function getPlaylistItems(playlistId) {
   return data || [];
 }
 
+async function reconcileActiveAdvertisementPlaylist(organizationId, playlistId) {
+  const supabase = getSupabase();
+  const [mediaResult, itemResult] = await Promise.all([
+    supabase
+      .from('media_assets')
+      .select('id,created_at')
+      .eq('organization_id', organizationId)
+      .eq('status', 'active')
+      .neq('kind', 'system_audio')
+      .is('archived_at', null)
+      .order('created_at', { ascending: true }),
+    supabase
+      .from('playlist_items')
+      .select('media_asset_id,sort_order')
+      .eq('playlist_id', playlistId)
+      .order('sort_order', { ascending: true }),
+  ]);
+  if (mediaResult.error) throw new Error(`Could not load advertisement media: ${mediaResult.error.message}`);
+  if (itemResult.error) throw new Error(`Could not load advertisement playlist items: ${itemResult.error.message}`);
+
+  const existingIds = new Set((itemResult.data || []).map(item => String(item.media_asset_id)));
+  let nextOrder = Math.max(0, ...(itemResult.data || []).map(item => Number(item.sort_order || 0))) + 1;
+  const missingRows = (mediaResult.data || [])
+    .filter(media => !existingIds.has(String(media.id)))
+    .map(media => ({ playlist_id: playlistId, media_asset_id: media.id, sort_order: nextOrder++ }));
+
+  if (missingRows.length) {
+    const inserted = await supabase.from('playlist_items').insert(missingRows);
+    if (inserted.error) throw new Error(`Could not repair advertisement playlist: ${inserted.error.message}`);
+  }
+  return missingRows.length;
+}
+
 function manifestMediaItem(media, sortOrder) {
   return {
     id: media.id,
@@ -130,13 +163,21 @@ function manifestMediaItem(media, sortOrder) {
 
 async function buildManifestBase(device) {
   const supabase = getSupabase();
-  const playlist = device.active_playlist_id
-    ? { id: device.active_playlist_id }
-    : await ensureActivePlaylist(device.organization_id);
-  if (!device.active_playlist_id) {
-    await supabase.from('devices').update({ active_playlist_id: playlist.id, updated_at: nowIso() }).eq('id', device.id);
+  // The organization active playlist is authoritative. Older devices may still
+  // point to a stale playlist, which made Manager show two ads while the device
+  // manifest contained only one.
+  const playlist = await ensureActivePlaylist(device.organization_id);
+  if (device.active_playlist_id !== playlist.id) {
+    const update = await supabase
+      .from('devices')
+      .update({ active_playlist_id: playlist.id, updated_at: nowIso() })
+      .eq('id', device.id);
+    if (update.error) throw new Error(`Could not align device playlist: ${update.error.message}`);
     device.active_playlist_id = playlist.id;
   }
+  // Uploads are designed to be auto-added to the active advertisement playlist.
+  // Repair legacy/missing playlist rows before generating the manifest.
+  await reconcileActiveAdvertisementPlaylist(device.organization_id, playlist.id);
   const playlistItems = await getPlaylistItems(playlist.id);
   const videos = playlistItems
     .filter(row => row.media_assets && row.media_assets.status === 'active' && !row.media_assets.archived_at && row.media_assets.kind !== 'system_audio')
@@ -235,6 +276,26 @@ async function rebuildOrganizationManifests(organizationId) {
 
 async function getLatestManifest(deviceId) {
   const supabase = getSupabase();
+  const deviceResult = await supabase
+    .from('devices')
+    .select('*')
+    .eq('id', deviceId)
+    .is('archived_at', null)
+    .single();
+  if (deviceResult.error) throw new Error(`Could not load device for manifest validation: ${deviceResult.error.message}`);
+  const device = deviceResult.data;
+  const playlist = await ensureActivePlaylist(device.organization_id);
+  let repaired = false;
+  if (device.active_playlist_id !== playlist.id) {
+    const update = await supabase
+      .from('devices')
+      .update({ active_playlist_id: playlist.id, updated_at: nowIso() })
+      .eq('id', device.id);
+    if (update.error) throw new Error(`Could not align device playlist: ${update.error.message}`);
+    repaired = true;
+  }
+  repaired = (await reconcileActiveAdvertisementPlaylist(device.organization_id, playlist.id)) > 0 || repaired;
+
   let { data, error } = await supabase
     .from('device_manifests')
     .select('*')
@@ -243,7 +304,21 @@ async function getLatestManifest(deviceId) {
     .limit(1)
     .maybeSingle();
   if (error) throw new Error(`Could not load latest manifest: ${error.message}`);
-  if (!data) data = await rebuildDeviceManifest(deviceId);
+
+  const canonicalItems = (await getPlaylistItems(playlist.id))
+    .filter(row => row.media_assets && row.media_assets.status === 'active' && !row.media_assets.archived_at && row.media_assets.kind !== 'system_audio')
+    .map(row => [
+      String(row.media_assets.id),
+      String(row.media_assets.checksum_sha256 || ''),
+      Number(row.sort_order || 0),
+    ]);
+  const manifestItems = (data?.payload?.videoPlaylist || []).map(item => [
+    String(item.id || ''),
+    String(item.checksumSha256 || ''),
+    Number(item.order || 0),
+  ]);
+  const playlistChanged = JSON.stringify(canonicalItems) !== JSON.stringify(manifestItems);
+  if (!data || repaired || playlistChanged) data = await rebuildDeviceManifest(deviceId);
   return data;
 }
 

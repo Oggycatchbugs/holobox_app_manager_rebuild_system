@@ -1,4 +1,4 @@
-const APP_VERSION = '14.1.0-phase2-startup-sync-bridge';
+const APP_VERSION = '14.1.1-display-media-fix';
 const STORAGE_KEY = 'holobox_manager_phase1_cache_v14';
 const TLC_LOGO_SRC = 'assets/tlc-logo.png';
 
@@ -340,7 +340,8 @@ function renderHoloboxScreenPreview(device) {
     : screenUrl
       ? `<div class="holobox-screen-frame-wrap"><iframe class="holobox-screen-frame" src="${escapeHtml(screenUrl)}" title="HoloBox screen" allow="autoplay; fullscreen"></iframe><a class="screen-open-link" href="${escapeHtml(screenUrl)}" target="_blank" rel="noopener">Mở màn hình trong tab mới</a></div>`
       : isAds ? renderAdsPreview() : renderAssistantPreview(device);
-  return `<div class="holobox-preview-card ${isAds && !isOff ? 'ads-output-card' : ''}"><div class="screen-output-area"><div class="preview-screen ${isOff ? 'off-mode' : isAds ? 'ads-mode' : 'assistant-mode'}">${screenContent}</div></div><div class="screen-control-area"><div class="preview-meta compact-meta"><div>${t('Status')}: ${statusBadge(device?.companyStatus || 'Cần hỗ trợ')}</div><div>${t('Mode')}: ${escapeHtml(device?.desiredMode === 'ADS_ONLY' ? t('Just Ads Mode') : t('Assistant Mode'))}</div><div>Nội dung: <b>${escapeHtml(displayLabel)}</b></div><div>Màn hình thật: <b>${escapeHtml(device?.currentScreen || 'Chưa báo cáo')}</b></div><div>${t('Last seen')}: ${lastSeenLabel(device?.lastSeenAt)}</div></div><div class="mode-toggle-panel"><h3>Chuyển chế độ HoloBox</h3>${renderCustomerDeviceModeControls(device)}</div></div></div>`;
+  const realScreenClass = screenUrl && !isOff ? 'real-screen-preview' : '';
+  return `<div class="holobox-preview-card ${isAds && !isOff ? 'ads-output-card' : ''}"><div class="screen-output-area"><div class="preview-screen ${isOff ? 'off-mode' : isAds ? 'ads-mode' : 'assistant-mode'} ${realScreenClass}">${screenContent}</div></div><div class="screen-control-area"><div class="preview-meta compact-meta"><div>${t('Status')}: ${statusBadge(device?.companyStatus || 'Cần hỗ trợ')}</div><div>${t('Mode')}: ${escapeHtml(device?.desiredMode === 'ADS_ONLY' ? t('Just Ads Mode') : t('Assistant Mode'))}</div><div>Nội dung: <b>${escapeHtml(displayLabel)}</b></div><div>Màn hình thật: <b>${escapeHtml(device?.currentScreen || 'Chưa báo cáo')}</b></div><div>${t('Last seen')}: ${lastSeenLabel(device?.lastSeenAt)}</div></div><div class="mode-toggle-panel"><h3>Chuyển chế độ HoloBox</h3>${renderCustomerDeviceModeControls(device)}</div></div></div>`;
 }
 function renderAssistantPreview(device) {
   return `<div class="preview-main assistant-output"><img class="preview-device-logo" src="assets/holobox-device.png" alt="HoloBox"><b>Assistant Mode</b><span>${escapeHtml(device?.runtimeState || 'Ready for avatar runtime')}</span></div>`;
